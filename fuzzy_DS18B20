@@ -1,0 +1,146 @@
+#include <Fuzzy.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+#define ONE_WIRE_BUS 2  //pin 2 of arduino
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+
+const int redled = 10;
+const int yellowled = 11;
+const int blueled = 12;
+
+//INPUT 1
+Fuzzy*fuzzy = new Fuzzy();
+FuzzySet*dingin = new FuzzySet(14, 17, 20, 25);
+FuzzySet*normal = new FuzzySet(24, 28, 31,36);
+FuzzySet*panas = new FuzzySet(35, 39, 42, 46);
+
+//INPUT 2
+FuzzySet*mati = new FuzzySet(0, 0, 0, 0 );
+FuzzySet*nyala = new FuzzySet(1 , 1, 1, 1);
+
+//OUTPUT
+FuzzySet*tidak_ada = new FuzzySet(0, 0, 0, 0);
+FuzzySet*biru = new FuzzySet(15, 18, 21, 25);
+FuzzySet*kuning = new FuzzySet(26, 29, 32,36);
+FuzzySet*merah = new FuzzySet(37, 40, 43, 47);
+
+void setup(void)
+{
+  Serial.begin(9600);
+  
+  Serial.println();
+  sensors.begin(); 
+  pinMode(redled, OUTPUT);
+  pinMode(yellowled, OUTPUT);
+  pinMode(blueled, OUTPUT);
+
+//INPUT 1
+  FuzzyInput*analog1 = new FuzzyInput(1);
+  analog1->addFuzzySet(dingin);
+  analog1->addFuzzySet(normal);
+  analog1->addFuzzySet(panas);
+  fuzzy->addFuzzyInput(analog1);
+
+//INPUT 2
+  FuzzyInput*analog2 = new FuzzyInput(2);
+  analog2->addFuzzySet(mati);
+  analog2->addFuzzySet(nyala);
+  fuzzy->addFuzzyInput(analog2);
+
+//OUTPUT 1
+  FuzzyOutput*digital1 = new FuzzyOutput(1);
+  digital1->addFuzzySet(tidak_ada);
+  digital1->addFuzzySet(biru);
+  digital1->addFuzzySet(kuning);
+  digital1->addFuzzySet(merah);
+  fuzzy->addFuzzyOutput(digital1);
+
+//RULE 1
+  FuzzyRuleAntecedent*dingin_nyala = new FuzzyRuleAntecedent();
+  dingin_nyala->joinWithAND(dingin,nyala);
+  FuzzyRuleConsequent*digital1_merah = new FuzzyRuleConsequent();
+  digital1_merah->addOutput(merah);
+  FuzzyRule*fuzzyRule1 = new FuzzyRule(1, dingin_nyala, digital1_merah);
+  fuzzy->addFuzzyRule(fuzzyRule1);
+
+//RULE 2
+  FuzzyRuleAntecedent*normal_nyala = new FuzzyRuleAntecedent();
+  normal_nyala->joinWithAND(normal, nyala);
+  FuzzyRuleConsequent*digital1_kuning = new FuzzyRuleConsequent();
+  digital1_kuning->addOutput(kuning);
+  FuzzyRule*fuzzyRule2 = new FuzzyRule(2, normal_nyala, digital1_kuning);
+  fuzzy->addFuzzyRule(fuzzyRule2);
+
+//RULE 3
+  FuzzyRuleAntecedent*panas_nyala = new FuzzyRuleAntecedent();
+  panas_nyala->joinWithAND(panas,nyala);
+  FuzzyRuleConsequent*digital1_biru = new FuzzyRuleConsequent();
+  digital1_biru->addOutput(biru);
+  FuzzyRule*fuzzyRule3 = new FuzzyRule(3, panas_nyala, digital1_biru);
+  fuzzy->addFuzzyRule(fuzzyRule3);
+
+//RULE 4
+  FuzzyRuleAntecedent*ifmati = new FuzzyRuleAntecedent();
+  ifmati->joinSingle(mati);
+  FuzzyRuleConsequent*digital1_tidak_ada = new FuzzyRuleConsequent();
+  digital1_tidak_ada->addOutput(tidak_ada);
+  FuzzyRule*fuzzyRule4 = new FuzzyRule(4, ifmati, digital1_tidak_ada);
+  fuzzy->addFuzzyRule(fuzzyRule4);
+}
+
+void loop(void)
+{
+  int button = digitalRead(7);
+
+  sensors.requestTemperatures();
+  delay(100);
+  float temp=sensors.getTempCByIndex(0);
+  //String sam= String(temp);
+  //Serial.println(sam);
+  // if(sam == "-127.00")
+  // {
+  // // do nothing
+  // }else{
+  //   Serial.print("Temperature : ");
+  //   Serial.println(sensors.getTempCByIndex(0));
+  //   //Serial.print (sam);
+  //   //Serial.println();
+  // } 
+   
+   int in_analog1=temp;
+   int in_analog2=button;
+   Serial.print("Suhu: ");
+   Serial.println(in_analog1);
+   Serial.print("Kondisi: ");
+   Serial.println(in_analog2);
+
+   fuzzy->setInput(1,in_analog1);
+   fuzzy->setInput(2,in_analog2);
+   fuzzy->fuzzify();
+
+   float out_digital1=fuzzy->defuzzify(1);
+   Serial.print("Hasil: ");
+   Serial.println(out_digital1);
+   Serial.println("");
+
+   if(out_digital1 >= 15 && out_digital1 <= 25){
+     digitalWrite(redled, LOW);
+     digitalWrite(yellowled, LOW);
+     digitalWrite(blueled, HIGH);
+   }else if(out_digital1 >= 26 && out_digital1 <= 36){
+     digitalWrite(redled, LOW);
+     digitalWrite(yellowled, HIGH);
+     digitalWrite(blueled, LOW);
+   }else if(out_digital1 >= 37 && out_digital1 <= 47){
+     digitalWrite(redled, HIGH);
+     digitalWrite(yellowled, LOW);
+     digitalWrite(blueled, LOW);
+   }else{
+     digitalWrite(redled, LOW);
+     digitalWrite(yellowled, LOW);
+     digitalWrite(blueled, LOW);
+   }
+  delay(1000);
+}
